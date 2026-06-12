@@ -3,7 +3,7 @@
    promo, aktivitas/riwayat, profil, top up
    ============================================================ */
 
-import { DEMO_USER, DEMO_HISTORY, VOUCHERS, TOPUP_AMOUNTS, TOPUP_METHODS, getService, getWorker, getCategory } from "./data.js";
+import { DEMO_USER, DEMO_HISTORY, VOUCHERS, TOPUP_AMOUNTS, TOPUP_METHODS, getService, getWorker, getCategory, SERVICES } from "./data.js";
 import { wait, workerOffer, negotiatedOffer } from "./sim.js";
 import { getState, setState, updateOrder, adjustBalance, addHistory, logout } from "./store.js";
 import { h, icon, screen, btn, fmtRp, photoAvatar, toast, addTimer, stars } from "./ui.js";
@@ -31,12 +31,13 @@ export function PromoScreen() {
             "div",
             { class: "voucher-body" },
             h("strong", {}, v.title),
-            h("span", { class: "row-sub" }, v.desc),
-            h("span", { class: "row-sub" }, "Berlaku s/d " + v.expiry + " · Kode: " + v.code)
+            h("span", { class: "row-sub voucher-desc" }, v.desc),
+            h("span", { class: "row-sub", style: "color:var(--brand);font-weight:700;margin-top:2px" }, "S&K Berlaku >")
           ),
           h(
             "div",
             { class: "voucher-act" },
+            v.type === "expired" || v.type === "disabled" ? h("span", { class: "soon-badge", style: "background: #ffebe9; color: var(--accent); border: 1px solid #ffdce0;" }, v.type === "expired" ? "Habis" : "S&K") :
             v.type === "cashback"
               ? h("span", { class: "soon-badge" }, "Otomatis")
               : h(
@@ -52,7 +53,7 @@ export function PromoScreen() {
                         setState({ activeVoucher: v.code });
                         toast("Voucher " + v.code + " siap dipakai saat checkout 🎉");
                       }
-                      go("#/promo"); // re-render
+                      go("#/promo");
                     },
                   },
                   used ? "Terpakai ✓" : "Pakai"
@@ -107,11 +108,13 @@ export function ActivityScreen() {
       h(
         "div",
         { class: "list" },
-        all.map((o) =>
-          h(
+        all.map((o) => {
+          const sObj = SERVICES.find(x => x.name === o.serviceName);
+          const cat = sObj ? getCategory(sObj.catId) : { icon: "doc", tint: "green" };
+          return h(
             "button",
             { class: "list-row", type: "button", onClick: () => toast("Detail pesanan tersimpan di Aktivitas") },
-            h("span", { class: "row-icon tint-green" }, icon("doc")),
+            h("span", { class: "row-icon tint-" + cat.tint }, icon(cat.icon)),
             h(
               "div",
               { class: "row-main" },
@@ -126,7 +129,7 @@ export function ActivityScreen() {
               o.rating && h("span", { class: "stars", "aria-label": "Rating tukang " + o.rating }, icon("star", "star-ic"), " " + o.rating.toFixed(1))
             )
           )
-        )
+        })
       )
     );
   }

@@ -7,7 +7,7 @@
 import {
   PLATFORM_FEE, PAYMENT_METHODS,
   getService, getWorker, getCategory, getVoucher,
-  getProgressTemplate, getExtraProgress,
+  getProgressTemplate, getExtraProgress, SERVICES,
 } from "./data.js";
 import { findWorker, processPayment, initialEta, workerOffer, negotiatedOffer } from "./sim.js";
 import { getState, updateOrder, setState, adjustBalance, addHistory } from "./store.js";
@@ -664,7 +664,29 @@ export function PaymentScreen() {
       payBtn.disabled = true;
       payBtn.textContent = "Memproses pembayaran…";
       await processPayment();
-      if (method === "kangpay") adjustBalance(-total);
+      let cashbackAmount = 0;
+      if (v && v.type === "cashback") {
+        if (method === "kangpay") {
+          cashbackAmount = Math.min(total * v.pct, v.max || Infinity);
+        }
+      }
+
+      if (method === "kangpay") {
+        adjustBalance(-total);
+        if (cashbackAmount > 0) {
+          adjustBalance(cashbackAmount);
+          toast("Pembayaran berhasil ✓ Cashback " + fmtRp(cashbackAmount) + " masuk ke KangPay!");
+        } else {
+          toast("Pembayaran berhasil ✓");
+        }
+      } else {
+        if (v && v.type === "cashback") {
+          toast("Pembayaran berhasil ✓ (Cashback gagal: tidak pakai KangPay)");
+        } else {
+          toast("Pembayaran berhasil ✓");
+        }
+      }
+
       addHistory({
         id: order.id,
         serviceName: s.name,
@@ -673,7 +695,6 @@ export function PaymentScreen() {
         status: "Selesai",
       });
       setState({ activeVoucher: null });
-      toast("Pembayaran berhasil ✓");
       updateOrder({ step: "rating", paidTotal: total, paymentMethod: method });
       go("#/rating");
     },
@@ -694,7 +715,8 @@ export function PaymentScreen() {
           lineRow("Jasa — " + s.name, fmtRp(base)),
           extras.map((c) => lineRow(c.label, fmtRp(c.amount), "extra-line")),
           lineRow("Biaya layanan aplikasi", fmtRp(PLATFORM_FEE)),
-          v && discount > 0 && lineRow("Voucher " + v.code, "−" + fmtRp(discount), "discount"),
+          v && discount > 0 ? lineRow("Voucher " + v.code, "−" + fmtRp(discount), "discount") : null,
+          v && v.type === "cashback" ? lineRow("Cashback KangPay", fmtRp(Math.min(total * v.pct, v.max || Infinity)), "discount") : null,
           lineRow("Total", fmtRp(total), "strong")
         ),
         extras.length
@@ -792,7 +814,13 @@ export function RatingScreen() {
     ),
     bottom: btn("Kirim Penilaian", {
       onClick: () => {
-        setState({ lastRating: { stars: ratingVal, chips: [...chipsSel], text: ta.value } });
+        const st = getState();
+        st.lastRating = { stars: ratingVal, chips: [...chipsSel], text: ta.value };
+        const history = st.history || [];
+        if (history.length > 0 && history[0].id === st.order?.id) {
+          history[0].rating = ratingVal;
+        }
+        setState({ lastRating: st.lastRating, history: history });
         updateOrder({ step: "done" });
         go("#/done");
       },

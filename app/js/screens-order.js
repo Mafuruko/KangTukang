@@ -235,7 +235,19 @@ export function HomeScreen() {
         PROMO_BANNERS.map((p) =>
           h(
             "button",
-            { class: `promo-card promo-${p.tint}`, type: "button", onClick: () => go("#/promo") },
+            {
+              class: "promo-card promo-" + p.tint,
+              type: "button",
+              onClick: () => {
+                if (p.code) {
+                  setState({ activeVoucher: p.code });
+                  toast("Kode " + p.code + " diterapkan!");
+                  go("#/promo");
+                } else {
+                  go("#/promo");
+                }
+              },
+            },
             h("strong", {}, p.title),
             h("span", {}, p.sub)
           )

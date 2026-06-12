@@ -441,9 +441,9 @@ export const WORKERS = [
 
 /* ---------- Promo & voucher ---------- */
 export const PROMO_BANNERS = [
-  { id: "b1", title: "Diskon 10% Cleaning", sub: "Pakai voucher HEMAT10", tint: "green" },
-  { id: "b2", title: "Cashback 20% KangPay", sub: "Bayar pakai saldo KangPay", tint: "blue" },
-  { id: "b3", title: "Servis AC mulai 75rb", sub: "Promo musim panas", tint: "orange" },
+  { id: "b1", title: "Diskon 10% s/d 25rb", sub: "Pakai voucher HEMAT10", tint: "green", code: "HEMAT10" },
+  { id: "b2", title: "Cashback 20% KangPay", sub: "Maks. Rp30.000 via KangPay", tint: "blue", code: "KANGPAY20" },
+  { id: "b3", title: "Gratis Biaya Aplikasi", sub: "Pakai voucher GRATISAPP", tint: "orange", code: "GRATISAPP" },
 ];
 
 export const VOUCHERS = [
@@ -471,6 +471,24 @@ export const VOUCHERS = [
     type: "cashback",
     pct: 0.2,
     max: 30000,
+  },
+  {
+    code: "AWALBULAN",
+    title: "Diskon Rp50.000 Awal Bulan",
+    desc: "Khusus untuk layanan Renovasi · Kuota promo telah habis digunakan oleh pengguna lain.",
+    expiry: "5 Jun 2026",
+    type: "expired",
+    pct: 0,
+    max: 0,
+  },
+  {
+    code: "TUKANGBARU",
+    title: "Diskon Spesial Pengguna Baru",
+    desc: "Hanya berlaku untuk transaksi pertama kali di aplikasi KangTukang dengan minimal pembelian layanan sebesar Rp200.000 (tidak termasuk biaya admin dan platform).",
+    expiry: "31 Des 2026",
+    type: "disabled",
+    pct: 0,
+    max: 0,
   },
 ];
 
