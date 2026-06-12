@@ -38,7 +38,8 @@ export function StartScreen() {
           "Ini adalah demo interaktif KangTukang. Seluruh akun, saldo, transaksi, lokasi, dan percakapan hanyalah data dummy/simulasi — tidak ada data pribadi yang diminta, disimpan, atau dikirim ke mana pun."
         ),
         h("p", { class: "muted tiny" }, "Tanpa install · Tanpa daftar akun · Tanpa pembayaran sungguhan"),
-        btn("Mulai Demo", { variant: "landing", onClick: () => go("#/login") })
+        btn("Mulai Demo", { variant: "landing", onClick: () => go("#/login") }),
+        btn("Kembali ke Halaman Utama", { variant: "ghost", onClick: () => location.href = "../index.html" })
       )
     ),
   });
