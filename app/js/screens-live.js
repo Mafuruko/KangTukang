@@ -471,6 +471,28 @@ export function ProgressScreen() {
     waitingApproval = true;
     pendingUpdate = update;
     clearTimeout(flowTimer);
+
+    /* tukang juga mengabari lewat chat + badge belum dibaca di ikon chat */
+    const ord = getState().order;
+    const msgs = [...(ord.chatMessages || [])];
+    if (!msgs.some((m) => m.text === update.note)) {
+      const stageNow = plan[Math.min(current, plan.length - 1)].label;
+      msgs.push({ from: "worker", text: update.note, state: stageNow });
+      msgs.push({
+        from: "worker",
+        text:
+          "Rinciannya: " +
+          update.steps.join(", ") +
+          " — tambahan biaya " +
+          fmtRp(update.cost.amount) +
+          ". Pekerjaan ini baru saya mulai setelah Kakak setujui dari halaman progress ya 🙏",
+        state: stageNow,
+      });
+      updateOrder({ chatMessages: msgs, chatUnread: (ord.chatUnread || 0) + 2 });
+      toast("💬 Pesan baru dari " + w.name.split(" ")[0]);
+    }
+    refreshChatBadge();
+
     updateEl.replaceChildren(
       h(
         "div",
@@ -480,7 +502,7 @@ export function ProgressScreen() {
         h(
           "div",
           { class: "breakdown compact-breakdown" },
-          lineRow("Pekerjaan", update.steps.join(", ")),
+          lineRow("Pekerjaan", update.steps.join(", "), "block"),
           lineRow("Tambahan biaya", fmtRp(update.cost.amount), "strong")
         ),
         h("p", { class: "muted tiny" }, "Pekerjaan belum dimulai dan tidak masuk tagihan sebelum disetujui."),
@@ -585,6 +607,21 @@ export function ProgressScreen() {
     flowTimer = addTimer(setTimeout(advance, 2800));
   }
 
+  /* tombol chat dengan badge jumlah pesan belum dibaca */
+  const chatBadge = h("span", { class: "chat-badge", style: "display:none" }, "");
+  const chatBtn = h(
+    "button",
+    { class: "round-btn", type: "button", "aria-label": "Chat tukang", onClick: () => go("#/chat/" + order.id) },
+    icon("chat"),
+    chatBadge
+  );
+  function refreshChatBadge() {
+    const n = getState().order.chatUnread || 0;
+    chatBadge.textContent = n > 9 ? "9+" : String(n);
+    chatBadge.style.display = n > 0 ? "grid" : "none";
+  }
+  refreshChatBadge();
+
   render();
   if (pendingUpdate) {
     /* user sempat meninggalkan layar saat ada rekomendasi berbayar — tampilkan lagi */
@@ -619,11 +656,7 @@ export function ProgressScreen() {
           h(
             "div",
             { class: "contact-btns" },
-            h(
-              "button",
-              { class: "round-btn", type: "button", "aria-label": "Chat tukang", onClick: () => go("#/chat/" + order.id) },
-              icon("chat")
-            ),
+            chatBtn,
             h(
               "button",
               { class: "round-btn", type: "button", "aria-label": "Telepon", onClick: () => toast("Panggilan — simulasi") },

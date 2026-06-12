@@ -608,6 +608,9 @@ img { display: block; }
 .line.strong span:last-child { font-size: 15px; }
 .line.discount span:last-child { color: var(--success); }
 .line.extra-line span:first-child::before { content: "+ "; color: var(--orange); font-weight: 800; }
+/* label baris tidak boleh remuk huruf-per-huruf saat nilai terlalu panjang */
+.line span:first-child { flex-shrink: 0; }
+
 /* baris teks panjang (catatan/deskripsi): label di atas, isi wrap ke bawah */
 .line.block { flex-direction: column; align-items: flex-start; gap: 3px; }
 .line.block span:last-child {
@@ -679,6 +682,49 @@ img { display: block; }
   transition: all 0.2s ease;
 }
 .terms-box.checked { background: var(--brand); border-color: var(--brand); }
+
+/* ---------- Badge pesan belum dibaca ---------- */
+.contact-btns .round-btn { position: relative; }
+.chat-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: grid;
+  place-items: center;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  background: var(--accent);
+  color: #fff;
+  border: 2px solid var(--surface);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+}
+.unread-count {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+/* rincian harga di kartu penawaran chat (jasa + pekerjaan tambahan) */
+.offer-breakdown { margin-top: 2px; padding-top: 8px; border-top: 1px dashed var(--line); }
+.offer-breakdown .extra-amount { color: var(--orange); font-weight: 800; }
+
+/* ---------- Kartu persetujuan pekerjaan tambahan di chat ---------- */
+.chat-offer-card.approval-card { gap: 8px; }
+.chat-offer-card.approval-card > strong { font-size: 14.5px; letter-spacing: -0.01em; }
+.chat-offer-card.approval-card .paid-badge { align-self: flex-start; }
+.chat-offer-card.approval-card .inline-actions { margin-top: 4px; }
 
 /* ---------- Chat saat progress: foto, tag state, quick reply ---------- */
 .bubble.photo { padding: 6px; max-width: 70%; }

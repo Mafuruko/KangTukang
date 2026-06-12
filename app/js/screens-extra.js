@@ -167,7 +167,9 @@ export function MessagesScreen() {
           h("span", { class: "row-sub message-preview" }, order.agreedPrice ? "Harga telah disepakati. Sampai bertemu di lokasi." : "Saya sudah mengirim penawaran harga."),
           h("span", { class: "message-context" }, service ? service.name : "Pesanan aktif")
         ),
-        h("span", { class: "unread-dot" })
+        order.chatUnread
+          ? h("span", { class: "unread-count" }, order.chatUnread > 9 ? "9+" : String(order.chatUnread))
+          : h("span", { class: "unread-dot" })
       )
     : h(
         "div",
@@ -228,6 +230,9 @@ export function ChatScreen(threadId) {
   const worker = getWorker(order.workerId);
   const cat = getCategory(service.catId);
 
+  /* pesan dibaca → hapus badge belum-dibaca */
+  if (order.chatUnread) updateOrder({ chatUnread: 0 });
+
   /* konteks live: chat tahu sedang di fase apa (perjalanan / pengerjaan) */
   const inProgress = order.step === "progress";
   const inTransit = order.step === "tracking";
@@ -255,13 +260,120 @@ export function ChatScreen(threadId) {
     updateOrder({ chatMessages: messages });
   }
 
+  /* ----- persetujuan pekerjaan tambahan via chat (sinkron dengan layar progress) ----- */
+  let approvalDecided = null; // "approved" | "skipped" (keputusan di sesi chat ini)
+
+  function aLine(label, value, cls = "") {
+    return h("div", { class: "line " + cls }, h("span", {}, label), h("span", {}, value));
+  }
+
+  function approveFromChat() {
+    const ord = getState().order;
+    const ps = ord.progressSteps;
+    if (!ps || !ps.pendingUpdate) return;
+    const u = ps.pendingUpdate;
+    const injected = u.steps.map((label, i) => ({
+      label,
+      extra: true,
+      note: i === 0,
+      updateType: u.type,
+      badge: "Detail dari tukang",
+    }));
+    const steps = [...ps.steps];
+    steps.splice((ps.current || 0) + 1, 0, ...injected);
+    const costs = [...(ord.extraCosts || [])];
+    if (u.cost && !costs.some((c) => c.label === u.cost.label)) costs.push({ ...u.cost, approved: true });
+    updateOrder({ progressSteps: { ...ps, steps, pendingUpdate: null }, extraCosts: costs });
+    approvalDecided = "approved";
+    messages.push({ from: "user", text: "Saya setujui pekerjaan tambahannya, silakan lanjut Pak 👍", state: stageLabel });
+    persist();
+    renderChat();
+    toast("Pekerjaan tambahan disetujui");
+    workerReplies([{ from: "worker", text: "Siap Kak, saya kerjakan sekalian ya. Terima kasih 🙏", state: stageLabel }]);
+  }
+
+  function skipFromChat() {
+    const ord = getState().order;
+    const ps = ord.progressSteps;
+    if (!ps || !ps.pendingUpdate) return;
+    updateOrder({ progressSteps: { ...ps, pendingUpdate: null } });
+    approvalDecided = "skipped";
+    messages.push({ from: "user", text: "Untuk yang ini dilewati dulu ya, Pak 🙏", state: stageLabel });
+    persist();
+    renderChat();
+    workerReplies([{ from: "worker", text: "Baik Kak, saya lanjutkan pekerjaan utamanya 👍", state: stageLabel }]);
+  }
+
+  function approvalBubble() {
+    const ps = getState().order.progressSteps;
+    const u = ps ? ps.pendingUpdate : null;
+    if (!u && !approvalDecided) return null;
+    if (!u) {
+      return h(
+        "div",
+        { class: "chat-offer-card inactive" },
+        h("span", { class: "price-box-label" }, "Pekerjaan tambahan"),
+        h(
+          "span",
+          { class: "offer-locked" },
+          icon("check"),
+          approvalDecided === "approved" ? "Disetujui — dikerjakan sekalian" : "Dilewati"
+        )
+      );
+    }
+    return h(
+      "div",
+      { class: "chat-offer-card approval-card" },
+      h("span", { class: "paid-badge" }, "PERLU PERSETUJUAN"),
+      h("strong", {}, "Rekomendasi dari tukang"),
+      h("p", { class: "muted tiny", style: "margin:0" }, u.note),
+      h(
+        "div",
+        { class: "breakdown" },
+        aLine("Pekerjaan", u.steps.join(", "), "block"),
+        u.cost && aLine("Tambahan biaya", fmtRp(u.cost.amount), "strong")
+      ),
+      h(
+        "div",
+        { class: "inline-actions" },
+        btn("Setujui", { small: true, onClick: approveFromChat }),
+        btn("Lewati", { variant: "secondary", small: true, onClick: skipFromChat })
+      )
+    );
+  }
+
   function offerBubble() {
     const disabled = !canAccept;
+    const ord = getState().order;
+    const extras = ord.agreedPrice ? ord.extraCosts || [] : [];
+    const extrasSum = extras.reduce((a, c) => a + c.amount, 0);
+    const total = ord.agreedPrice ? ord.agreedPrice + extrasSum : activeOffer;
+
     return h(
       "div",
       { class: "chat-offer-card" + (disabled ? " inactive" : "") },
-      h("span", { class: "price-box-label" }, order.agreedPrice ? "Harga jasa disepakati" : !canNegotiate ? "Penawaran final tukang" : "Penawaran harga jasa"),
-      h("strong", {}, fmtRp(activeOffer)),
+      h(
+        "span",
+        { class: "price-box-label" },
+        ord.agreedPrice
+          ? extras.length
+            ? "Harga jasa + pekerjaan tambahan"
+            : "Harga jasa disepakati"
+          : !canNegotiate
+          ? "Penawaran final tukang"
+          : "Penawaran harga jasa"
+      ),
+      h("strong", {}, fmtRp(total)),
+      extras.length
+        ? h(
+            "div",
+            { class: "breakdown offer-breakdown" },
+            h("div", { class: "line" }, h("span", {}, "Jasa disepakati"), h("span", {}, fmtRp(ord.agreedPrice))),
+            extras.map((c) =>
+              h("div", { class: "line" }, h("span", {}, c.label), h("span", { class: "extra-amount" }, "+" + fmtRp(c.amount)))
+            )
+          )
+        : null,
       h("span", { class: "muted tiny" }, "Belum termasuk promo dan biaya aplikasi"),
       disabled
         ? h("span", { class: "offer-locked" }, icon("check"), "Harga telah dikunci")
@@ -290,7 +402,7 @@ export function ChatScreen(threadId) {
         if (m.state) out.push(h("span", { class: "bubble-meta " + m.from }, "saat: “" + m.state + "”"));
         return out;
       }),
-      offerBubble()
+      ...[offerBubble(), approvalBubble()].filter(Boolean)
     );
     requestAnimationFrame(() => {
       const sc = document.querySelector(".screen-body");
