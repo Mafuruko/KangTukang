@@ -437,6 +437,19 @@ export function ChatScreen(threadId) {
     persist();
     renderChat();
 
+    /* Easter egg: request foto/selfie */
+    const lowerText = text.toLowerCase();
+    if (lowerText.includes("foto") || lowerText.includes("selfie")) {
+      await workerReplies([
+        { from: "worker", text: "Ini fotonya Kak 📷" },
+        { from: "worker", photo: "img/progress/generic.jpg", text: "Foto", state: isLive ? stageLabel : "Chat" }
+      ]);
+      sendBtn.disabled = false;
+      input.disabled = false;
+      renderComposer();
+      return;
+    }
+
     if (!canNegotiate) {
         composer.replaceChildren(h("div", { class: "typing-bar" }, h("span", { class: "status-orb" }), worker.name.split(" ")[0] + " sedang mengetik..."));
         await new Promise((resolve) => addTimer(setTimeout(resolve, 900)));
