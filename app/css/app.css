@@ -608,6 +608,28 @@ img { display: block; }
 .line.strong span:last-child { font-size: 15px; }
 .line.discount span:last-child { color: var(--success); }
 .line.extra-line span:first-child::before { content: "+ "; color: var(--orange); font-weight: 800; }
+/* baris teks panjang (catatan/deskripsi): label di atas, isi wrap ke bawah */
+.line.block { flex-direction: column; align-items: flex-start; gap: 3px; }
+.line.block span:last-child {
+  white-space: pre-wrap;       /* ikut newline yang diketik user */
+  overflow-wrap: anywhere;     /* kata super panjang tetap dipotong */
+  word-break: break-word;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.55;
+}
+
+/* panel estimasi live di layar Kebutuhan & Estimasi */
+.form-estimate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 2px 4px;
+}
+.form-estimate-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.form-estimate-info strong { font-size: 16px; color: var(--ink); letter-spacing: -0.01em; }
 
 .loc-static { display: flex; gap: 12px; align-items: flex-start; }
 .loc-static p { margin: 2px 0 0; }

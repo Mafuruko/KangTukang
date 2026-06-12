@@ -438,13 +438,13 @@ export function ServiceScreen(serviceId) {
     bottom: btn("Pesan Layanan Ini", {
       onClick: () => {
         newOrder(s.id);
-        go("#/form");
+        go("#/location");
       },
     }),
   });
 }
 
-/* ---------- 6. Form kebutuhan ---------- */
+/* ---------- 6. Form kebutuhan + estimasi harga (live) ---------- */
 export function FormScreen() {
   const order = getState().order;
   const s = getService(order.serviceId);
@@ -454,36 +454,65 @@ export function FormScreen() {
     if (answers[f.id] == null && f.default != null) answers[f.id] = f.default;
   }
 
+  /* panel estimasi yang ter-update otomatis tiap input berubah */
+  const estBox = h("div", { class: "form-estimate" });
+  function refreshEstimate() {
+    const est = calcEstimate(s, answers);
+    estBox.replaceChildren(
+      h(
+        "div",
+        { class: "form-estimate-info" },
+        h("span", { class: "price-box-label" }, "Estimasi harga"),
+        h("strong", {}, est ? fmtRange(est) : "Perlu konsultasi mitra")
+      ),
+      h(
+        "span",
+        { class: "muted tiny" },
+        est ? "+ " + fmtRp(PLATFORM_FEE) + " biaya aplikasi" : "Penawaran diberikan oleh mitra"
+      )
+    );
+  }
+  refreshEstimate();
+
   return screen({
-    title: "Detail Kebutuhan",
-    back: "#/service/" + s.id,
+    title: "Kebutuhan & Estimasi",
+    back: "#/location",
     content: h(
       "div",
       { class: "stack" },
       h("div", { class: "context-chip" }, icon(getCategory(s.catId).icon, "chip-icon"), s.name),
-      s.form.map((f) => renderField(f, answers))
+      s.form.map((f) => renderField(f, answers, refreshEstimate))
     ),
-    bottom: btn("Lanjut: Lokasi Layanan", {
-      onClick: () => {
-        for (const f of s.form) {
-          if (f.required && f.type === "textarea" && !String(answers[f.id] || "").trim()) {
-            toast("Mohon isi: " + f.label);
-            return;
+    bottom: h(
+      "div",
+      { class: "stack-sm" },
+      estBox,
+      btn("Lanjut Konfirmasi Pesanan", {
+        onClick: () => {
+          for (const f of s.form) {
+            if (f.required && f.type === "textarea" && !String(answers[f.id] || "").trim()) {
+              toast("Mohon isi: " + f.label);
+              return;
+            }
           }
-        }
-        updateOrder({ answers });
-        go("#/location");
-      },
-    }),
+          updateOrder({ answers, estimate: calcEstimate(s, answers) });
+          go("#/checkout");
+        },
+      })
+    ),
   });
 }
 
-function renderField(f, answers) {
+function renderField(f, answers, onChange) {
+  const changed = () => {
+    if (typeof onChange === "function") onChange();
+  };
   if (f.type === "stepper") {
     const val = h("span", { class: "stepper-value" }, String(answers[f.id]));
     const set = (n) => {
       answers[f.id] = Math.min(f.max, Math.max(f.min, n));
       val.textContent = String(answers[f.id]);
+      changed();
     };
     return h(
       "div",
@@ -513,6 +542,7 @@ function renderField(f, answers) {
               onClick: () => {
                 answers[f.id] = o.value;
                 render();
+                changed();
               },
             },
             o.label
@@ -536,6 +566,7 @@ function renderField(f, answers) {
             onClick: () => {
               answers[f.id] = "demo-photo";
               renderDone();
+              changed();
               toast("Foto berhasil ditambahkan");
             },
           },
@@ -564,6 +595,7 @@ function renderField(f, answers) {
               onClick: () => {
                 delete answers[f.id];
                 renderEmpty();
+                changed();
               },
             },
             "Hapus"
@@ -693,7 +725,7 @@ export function LocationScreen() {
 
   return screen({
     title: "Lokasi Layanan",
-    back: "#/form",
+    back: "#/service/" + order.serviceId,
     content: h(
       "div",
       { class: "stack" },
@@ -705,7 +737,7 @@ export function LocationScreen() {
     bottom: btn("Pakai Lokasi Ini", {
       onClick: () => {
         updateOrder({ location: selected });
-        go("#/estimate");
+        go("#/form");
       },
     }),
   });
@@ -782,7 +814,9 @@ export function summaryAnswers(s, answers) {
     }
     if (f.type === "stepper") text = `${v} ${f.suffix || ""}`;
     if (f.type === "photo") text = "1 foto terlampir";
-    items.push(line(f.label.replace(" (opsional)", "").replace(" (disarankan)", "").replace(" *", ""), String(text)));
+    const label = f.label.replace(" (opsional)", "").replace(" (disarankan)", "").replace(" *", "");
+    /* teks bebas (catatan/deskripsi) bisa panjang → render sebagai blok agar wrap ke bawah */
+    items.push(line(label, String(text), f.type === "textarea" ? "block" : ""));
   }
   if (!items.length) return null;
   return h(
@@ -1021,7 +1055,7 @@ export function CheckoutScreen() {
 
   return screen({
     title: "Konfirmasi Pesanan",
-    back: "#/estimate",
+    back: "#/form",
     content: h(
       "div",
       { class: "stack" },
