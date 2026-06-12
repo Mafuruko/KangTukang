@@ -31,47 +31,59 @@ export function StartScreen() {
       h(
         "div",
         { class: "card start-card" },
-        h("span", { class: "start-kicker" }, "Urusan rumah jadi mudah"),
+        h("span", { class: "start-kicker" }, "Mode Demo"),
         h(
           "p",
           {},
-          "Pesan tukang terverifikasi, sepakati harga dengan adil, lalu pantau pengerjaan sampai selesai."
+          "Ini adalah demo interaktif KangTukang. Seluruh akun, saldo, transaksi, lokasi, dan percakapan hanyalah data dummy/simulasi — tidak ada data pribadi yang diminta, disimpan, atau dikirim ke mana pun."
         ),
-        btn("Mulai", { onClick: () => go("#/login") })
+        h("p", { class: "muted tiny" }, "Tanpa install · Tanpa daftar akun · Tanpa pembayaran sungguhan"),
+        btn("Mulai Demo", { variant: "landing", onClick: () => go("#/login") })
       )
     ),
   });
 }
 
 export function LoginScreen() {
-  const inputName = h("input", { class: "input", type: "text", placeholder: "", disabled: true });
-  const inputEmail = h("input", { class: "input", type: "email", placeholder: "", disabled: true });
-  const inputPhone = h("input", { class: "input", type: "tel", placeholder: "", disabled: true });
+  const inputName = h("input", { class: "input reg-input", type: "text", readonly: true, placeholder: "Nama lengkap" });
+  const inputEmail = h("input", { class: "input reg-input", type: "text", readonly: true, placeholder: "nama@email.com" });
+  const inputPhone = h("input", { class: "input reg-input", type: "text", readonly: true, placeholder: "+62 8xx-xxxx-xxxx" });
+  const inputPass = h("input", { class: "input reg-input", type: "text", readonly: true, placeholder: "Minimal 8 karakter", autocomplete: "off" });
 
-  const loginBtn = btn("Mendaftarkan...", { disabled: true });
+  const termsBox = h("span", { class: "terms-box" }, "");
+  const regBtn = btn("Daftar", { onClick: () => {} });
+  regBtn.disabled = true;
 
   addTimer(setTimeout(async () => {
     await typeText(inputName, DEMO_USER.name);
-    await wait(400);
+    await wait(350);
     await typeText(inputEmail, DEMO_USER.email);
-    await wait(400);
+    await wait(350);
     await typeText(inputPhone, DEMO_USER.phone);
+    await wait(350);
+    await typeText(inputPass, "**********");
+    await wait(450);
+    termsBox.classList.add("checked");
+    termsBox.textContent = "✓";
+    await wait(550);
+    regBtn.disabled = false;
+    regBtn.textContent = "Mendaftar…";
     await wait(800);
-    loginBtn.textContent = "Melanjutkan...";
-    await wait(400);
-    setState({ pendingPhone: "+62 " + DEMO_USER.phone });
+    setState({ pendingPhone: DEMO_USER.phone });
     go("#/otp");
   }, 600));
 
   async function typeText(el, text) {
+    el.classList.add("typing");
     for (let i = 0; i < text.length; i++) {
       el.value += text[i];
-      await wait(Math.random() * 50 + 30);
+      await wait(Math.random() * 45 + 28);
     }
+    el.classList.remove("typing");
   }
 
   return screen({
-    title: "",
+    title: "Daftar Akun",
     back: "#/start",
     content: h(
       "div",
@@ -80,13 +92,21 @@ export function LoginScreen() {
         "div",
         { class: "auth-hero" },
         h("img", { class: "auth-logo", src: "../assets/img/logo.png", alt: "" }),
-        h("h2", { class: "h1" }, "Selamat datang"),
-        h("p", { class: "muted" }, "Membuat akun otomatis untuk Anda...")
+        h("h2", { class: "h1" }, "Buat Akun Baru"),
+        h("p", { class: "muted" }, "Lengkapi data diri untuk mulai memesan layanan.")
       ),
       h("div", { class: "field" }, h("span", { class: "field-label" }, "Nama Lengkap"), inputName),
       h("div", { class: "field" }, h("span", { class: "field-label" }, "Email"), inputEmail),
       h("div", { class: "field" }, h("span", { class: "field-label" }, "Nomor HP"), inputPhone),
-      loginBtn
+      h("div", { class: "field" }, h("span", { class: "field-label" }, "Password"), inputPass),
+      h(
+        "label",
+        { class: "terms-row" },
+        termsBox,
+        h("span", {}, "Saya menyetujui ", h("strong", {}, "Syarat & Ketentuan"), " serta ", h("strong", {}, "Kebijakan Privasi"), " KangTukang.")
+      ),
+      regBtn,
+      h("p", { class: "muted tiny center" }, "Mode demo — data di atas dummy dan tidak dikirim ke mana pun.")
     ),
   });
 }
@@ -171,7 +191,7 @@ export function HomeScreen() {
         h(
           "div",
           { class: "grow" },
-          h("p", { class: "home-hi" }, greetingTime() + ","),
+          h("p", { class: "home-hi" }, "Selamat datang,"),
           h("p", { class: "home-name" }, DEMO_USER.greetingName)
         ),
         h(
