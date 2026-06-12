@@ -1,0 +1,19 @@
+{
+  "name": "KangTukang",
+  "short_name": "KangTukang",
+  "description": "Pesan jasa tukang terverifikasi dengan harga transparan.",
+  "lang": "id",
+  "start_url": "./index.html?mode=expo",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F7F4EC",
+  "theme_color": "#E0B222",
+  "icons": [
+    {
+      "src": "../assets/img/logo.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
