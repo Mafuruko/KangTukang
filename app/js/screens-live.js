@@ -410,11 +410,22 @@ export function ProgressScreen() {
   const baseSteps = getProgressTemplate(s).map((t) => ({ label: t, extra: false }));
   const updateConfig = getExtraProgress(s);
   const updates = updateConfig ? [...(updateConfig.updates || [])] : [];
-  const plan = [...baseSteps];
-  let current = 0;
+
+  /* restore state progress dari order — bolak-balik ke chat tidak mengulang dari awal */
+  const saved = order.progressSteps || null;
+  const plan = saved && Array.isArray(saved.steps) && saved.steps.length ? [...saved.steps] : [...baseSteps];
+  let current = saved ? saved.current || 0 : 0;
+  let nextUpdate = saved ? saved.nextUpdate || 0 : 0;
+  let pendingUpdate = saved ? saved.pendingUpdate || null : null;
   let waitingApproval = false;
-  let nextUpdate = 0;
   let flowTimer = null;
+
+  function persistProgress() {
+    updateOrder({
+      progressLabel: plan[Math.min(current, plan.length - 1)].label,
+      progressSteps: { steps: plan, current, nextUpdate, pendingUpdate },
+    });
+  }
 
   const listEl = h("ol", { class: "timeline" });
   const bottomEl = h("div", { class: "stack-sm" });
@@ -442,6 +453,7 @@ export function ProgressScreen() {
   function approveExtra(update) {
     insertUpdate(update, true);
     waitingApproval = false;
+    pendingUpdate = null;
     updateEl.replaceChildren();
     render();
     scheduleNext();
@@ -449,6 +461,7 @@ export function ProgressScreen() {
 
   function declineExtra() {
     waitingApproval = false;
+    pendingUpdate = null;
     updateEl.replaceChildren();
     render();
     scheduleNext();
@@ -456,6 +469,7 @@ export function ProgressScreen() {
 
   function showPaidApproval(update) {
     waitingApproval = true;
+    pendingUpdate = update;
     clearTimeout(flowTimer);
     updateEl.replaceChildren(
       h(
@@ -510,6 +524,9 @@ export function ProgressScreen() {
 
   function render() {
     const visible = plan.map((step, idx) => ({ step, idx }));
+
+    /* simpan tahap berjalan + rencana lengkap ke order (untuk chat & restore) */
+    persistProgress();
 
     listEl.replaceChildren(
       ...visible.map(({ step, idx }) => {
@@ -569,7 +586,12 @@ export function ProgressScreen() {
   }
 
   render();
-  scheduleNext();
+  if (pendingUpdate) {
+    /* user sempat meninggalkan layar saat ada rekomendasi berbayar — tampilkan lagi */
+    showPaidApproval(pendingUpdate);
+  } else {
+    scheduleNext();
+  }
 
   return screen({
     title: "Progress Pengerjaan",
@@ -587,9 +609,27 @@ export function ProgressScreen() {
             "div",
             { class: "driver-info" },
             h("strong", {}, w.name),
-            h("span", { class: "row-sub" }, s.name + " · " + order.id)
+            h(
+              "div",
+              { class: "driver-badges" },
+              h("span", { class: "live-dot" }, "LIVE"),
+              h("span", { class: "row-sub" }, s.name + " · " + order.id)
+            )
           ),
-          h("span", { class: "live-dot" }, "LIVE")
+          h(
+            "div",
+            { class: "contact-btns" },
+            h(
+              "button",
+              { class: "round-btn", type: "button", "aria-label": "Chat tukang", onClick: () => go("#/chat/" + order.id) },
+              icon("chat")
+            ),
+            h(
+              "button",
+              { class: "round-btn", type: "button", "aria-label": "Telepon", onClick: () => toast("Panggilan — simulasi") },
+              icon("phone")
+            )
+          )
         )
       ),
       summaryEl,

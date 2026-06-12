@@ -631,6 +631,47 @@ img { display: block; }
 .form-estimate-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .form-estimate-info strong { font-size: 16px; color: var(--ink); letter-spacing: -0.01em; }
 
+/* ---------- Chat saat progress: foto, tag state, quick reply ---------- */
+.bubble.photo { padding: 6px; max-width: 70%; }
+.bubble.photo img {
+  display: block;
+  width: 100%;
+  max-width: 240px;
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.bubble.photo .photo-caption { display: block; padding: 7px 6px 3px; font-size: 11px; color: var(--muted); }
+.bubble.user.photo .photo-caption { color: rgb(255 255 255 / 0.75); }
+
+.bubble-meta { font-size: 9.5px; color: var(--faint); margin-top: -3px; padding: 0 6px; }
+.bubble-meta.worker { align-self: flex-start; }
+.bubble-meta.user { align-self: flex-end; }
+
+.quick-replies {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 2px 9px;
+  scrollbar-width: none;
+}
+.quick-replies::-webkit-scrollbar { display: none; }
+.quick-reply { flex-shrink: 0; background: var(--brand-soft); border-color: #ecd998; color: var(--brand-deep); font-weight: 700; }
+.quick-reply:active { transform: scale(0.96); }
+
+.chat-progress-chip {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 10px;
+  padding: 10px 13px;
+  background: var(--brand-soft);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--brand-deep);
+}
+.chat-progress-chip strong { font-weight: 800; }
+.chat-progress-chip .icon svg { width: 16px; height: 16px; }
+
 .loc-static { display: flex; gap: 12px; align-items: flex-start; }
 .loc-static p { margin: 2px 0 0; }
 

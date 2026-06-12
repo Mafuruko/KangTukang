@@ -3,7 +3,7 @@
    promo, aktivitas/riwayat, profil, top up
    ============================================================ */
 
-import { DEMO_USER, DEMO_HISTORY, VOUCHERS, TOPUP_AMOUNTS, TOPUP_METHODS, getService, getWorker, getCategory, SERVICES } from "./data.js";
+import { DEMO_USER, DEMO_HISTORY, VOUCHERS, TOPUP_AMOUNTS, TOPUP_METHODS, getService, getWorker, getCategory, getProgressPhoto, SERVICES } from "./data.js";
 import { wait, workerOffer, negotiatedOffer } from "./sim.js";
 import { getState, setState, updateOrder, adjustBalance, addHistory, logout } from "./store.js";
 import { h, icon, screen, btn, fmtRp, photoAvatar, toast, addTimer, stars } from "./ui.js";
@@ -70,8 +70,10 @@ export function ActivityScreen() {
   const st = getState();
   const items = [];
 
-  /* pesanan aktif */
-  if (st.order && st.order.step && st.order.step !== "done") {
+  /* pesanan aktif — hanya setelah benar-benar dikonfirmasi (cari tukang dst.),
+     bukan saat user masih menyusun pesanan (form/lokasi/checkout) */
+  const CONFIRMED_STEPS = ["searching", "found", "price-agreement", "tracking", "progress", "payment", "rating"];
+  if (st.order && CONFIRMED_STEPS.includes(st.order.step)) {
     const s = getService(st.order.serviceId);
     const stepHash = st.order.step === "price-agreement" ? "#/chat/" + st.order.id : ({
       form: "#/form",
@@ -225,6 +227,12 @@ export function ChatScreen(threadId) {
   const service = getService(order.serviceId);
   const worker = getWorker(order.workerId);
   const cat = getCategory(service.catId);
+
+  /* konteks progress: chat tahu pekerjaan sedang di tahap apa */
+  const inProgress = order.step === "progress";
+  const progressLabel = order.progressLabel || "Persiapan";
+  const progressPhoto = getProgressPhoto(service.catId);
+
   let activeOffer = order.agreedPrice || (order.priceRevisionCount ? negotiatedOffer(workerOffer(order.estimate)) : workerOffer(order.estimate));
   let canNegotiate = order.step === "price-agreement" && !order.agreedPrice && !order.priceRevisionCount;
   let canAccept = order.step === "price-agreement" && !order.agreedPrice;
@@ -261,7 +269,24 @@ export function ChatScreen(threadId) {
   function renderChat() {
     chatEl.replaceChildren(
       h("div", { class: "chat-day" }, isCurrent && order.step !== "done" ? "Hari ini · Pesanan aktif" : "Riwayat percakapan"),
-      ...messages.map((m) => h("div", { class: "bubble " + m.from }, m.text)),
+      ...messages.flatMap((m) => {
+        const out = [];
+        if (m.photo) {
+          out.push(
+            h(
+              "div",
+              { class: "bubble " + m.from + " photo" },
+              h("img", { src: m.photo, alt: "Foto progress", loading: "lazy" }),
+              m.text ? h("span", { class: "photo-caption" }, m.text) : null
+            )
+          );
+        } else {
+          out.push(h("div", { class: "bubble " + m.from }, m.text));
+        }
+        /* penanda: pesan ini dikirim saat tahap progress apa */
+        if (m.state) out.push(h("span", { class: "bubble-meta " + m.from }, "saat: “" + m.state + "”"));
+        return out;
+      }),
       offerBubble()
     );
     requestAnimationFrame(() => {
@@ -284,14 +309,18 @@ export function ChatScreen(threadId) {
     input.value = "";
     sendBtn.disabled = true;
     input.disabled = true;
-    messages.push({ from: "user", text: text });
+    messages.push(inProgress ? { from: "user", text: text, state: progressLabel } : { from: "user", text: text });
     persist();
     renderChat();
 
     if (!canNegotiate) {
         composer.replaceChildren(h("div", { class: "typing-bar" }, h("span", { class: "status-orb" }), worker.name.split(" ")[0] + " sedang mengetik..."));
         await new Promise((resolve) => addTimer(setTimeout(resolve, 900)));
-        messages.push({ from: "worker", text: "Baik Kak, ditunggu konfirmasinya." });
+        messages.push(
+          inProgress
+            ? { from: "worker", text: "Siap Kak 👍 Saya lanjutkan pekerjaannya ya.", state: progressLabel }
+            : { from: "worker", text: "Baik Kak, ditunggu konfirmasinya." }
+        );
         persist();
         renderChat();
         sendBtn.disabled = false;
@@ -313,8 +342,67 @@ export function ChatScreen(threadId) {
     renderComposer();
   }
 
+  /* ----- quick reply saat pengerjaan berlangsung ----- */
+  function quickReply(label, onClick) {
+    return h("button", { class: "chip quick-reply", type: "button", onClick }, label);
+  }
+
+  async function workerReplies(replies) {
+    composer.replaceChildren(
+      h("div", { class: "typing-bar" }, h("span", { class: "status-orb" }), worker.name.split(" ")[0] + " sedang mengetik...")
+    );
+    await new Promise((r) => addTimer(setTimeout(r, 1100)));
+    for (const rep of replies) messages.push(rep);
+    persist();
+    renderChat();
+    renderComposer();
+  }
+
+  function sendPhotoRequest() {
+    messages.push({ from: "user", text: "Bisa saya lihat progressnya? 📷", state: progressLabel });
+    persist();
+    renderChat();
+    workerReplies([
+      { from: "worker", text: "Siap Kak, ini foto pekerjaannya 👍" },
+      { from: "worker", photo: progressPhoto, text: "Foto saat “" + progressLabel + "”", state: progressLabel },
+    ]);
+  }
+
+  function sendWhereAreWe() {
+    messages.push({ from: "user", text: "Sudah sampai mana, Pak?", state: progressLabel });
+    persist();
+    renderChat();
+    workerReplies([
+      { from: "worker", text: "Sekarang sedang tahap “" + progressLabel + "” Kak. Aman, sesuai rencana 👍", state: progressLabel },
+    ]);
+  }
+
+  function sendThanks() {
+    messages.push({ from: "user", text: "Terima kasih, Pak 🙏" });
+    persist();
+    renderChat();
+    workerReplies([{ from: "worker", text: "Sama-sama, Kak 🙏" }]);
+  }
+
   function renderComposer() {
-    if (order.agreedPrice) {
+    if (inProgress) {
+      composer.replaceChildren(
+        h(
+          "div",
+          { class: "quick-replies" },
+          quickReply("Bisa saya lihat progressnya? 📷", sendPhotoRequest),
+          quickReply("Sudah sampai mana, Pak?", sendWhereAreWe),
+          quickReply("Terima kasih 🙏", sendThanks)
+        ),
+        h(
+          "div",
+          { class: "chat-composer" },
+          h("button", { class: "round-btn", type: "button", style: "flex-shrink:0; background:var(--surface-2); color:var(--muted); border:none;", "aria-label": "Kirim Gambar", onClick: () => toast("Fitur kirim gambar (demo)") }, icon("camera")),
+          input,
+          sendBtn
+        )
+      );
+    } else if (order.agreedPrice) {
       composer.replaceChildren(h("div", { class: "chat-readonly" }, icon("shield"), "Percakapan tersimpan · harga sudah disepakati"));
     } else {
       const banner = !canNegotiate ? h("div", { class: "chat-warning-banner" }, icon("shield"), "Penawaran ini sudah final.") : "";
@@ -363,6 +451,14 @@ export function ChatScreen(threadId) {
           )
         )
       ),
+      inProgress
+        ? h(
+            "div",
+            { class: "chat-progress-chip" },
+            icon("wrench"),
+            h("span", {}, "Sedang dikerjakan: ", h("strong", {}, progressLabel))
+          )
+        : null,
       order.step === "price-agreement" ? h(
         "div",
         { class: "inline-actions", style: "margin-top: 0;" },
@@ -382,7 +478,7 @@ export function ChatScreen(threadId) {
 
   return screen({
     title: worker.name,
-    back: "#/messages",
+    back: inProgress ? "#/progress" : "#/messages",
     content: h(
       "div",
       { class: "chat-page" },

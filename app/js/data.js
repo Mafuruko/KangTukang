@@ -646,3 +646,18 @@ export function getProgressTemplate(service) {
 export function getExtraProgress(service) {
   return EXTRA_PROGRESS[service.id] || EXTRA_PROGRESS[service.catId] || null;
 }
+
+/* ---------- Foto progress dummy (dikirim tukang via chat) ----------
+   Ganti dengan foto asli cukup dengan menimpa file .jpg di app/img/progress/
+*/
+export const PROGRESS_PHOTOS = {
+  ac: "img/progress/ac.jpg",
+  listrik: "img/progress/listrik.jpg",
+  pipa: "img/progress/pipa.jpg",
+  cleaning: "img/progress/cleaning.jpg",
+  renovasi: "img/progress/renovasi.jpg",
+  elektronik: "img/progress/elektronik.jpg",
+  default: "img/progress/generic.jpg",
+};
+
+export const getProgressPhoto = (catId) => PROGRESS_PHOTOS[catId] || PROGRESS_PHOTOS.default;
