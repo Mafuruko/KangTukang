@@ -73,3 +73,4 @@ Semua di `app/js/data.js`: kategori, layanan (termasuk skema form & aturan harga
 - State demo disimpan di `sessionStorage` saja; tombol **Reset/Ulangi Demo** atau query `?reset=true` membersihkannya.
 - Tidak ada data sensitif yang diminta maupun dikirim.
 - Mode demo selalu ditandai strip "Mode Demo — pesanan tidak benar-benar dibuat".
+ 

@@ -66,20 +66,39 @@ export function routeLine(map, points) {
   const L = window.L;
   return L.polyline(
     points.map((p) => [p.lat, p.lng]),
-    { color: "#2F5E9E", weight: 4, opacity: 0.75, dashArray: "8 10", lineCap: "round" }
+    { color: "#2F5E9E", weight: 4, opacity: 0.85, lineCap: "round" }
   ).addTo(map);
 }
 
-/* Buat rute dummy dari titik awal mitra menuju lokasi customer */
-export function buildRoute(dest, steps = 9) {
+/* Ambil rute jalan raya asli via OSRM */
+export async function fetchOSRMRoute(dest) {
+  // Titik awal simulasi (misal 1-2 km dari lokasi)
   const start = {
     lat: dest.lat + 0.0095,
     lng: dest.lng - 0.0125,
   };
+  
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${dest.lng},${dest.lat}?overview=full&geometries=geojson`;
+    const res = await fetch(url);
+    const data = await res.json();
+    
+    if (data.routes && data.routes.length > 0) {
+      const coords = data.routes[0].geometry.coordinates;
+      const distance = data.routes[0].distance; // dalam meter
+      const duration = data.routes[0].duration; // dalam detik
+      
+      const pts = coords.map(c => ({ lat: c[1], lng: c[0] }));
+      return { pts, distance, duration };
+    }
+  } catch (err) {
+    console.warn("OSRM fetch failed, using fallback route", err);
+  }
+  
+  // Fallback ke zig-zag jika gagal
   const pts = [start];
-  for (let i = 1; i < steps; i++) {
-    const t = i / steps;
-    // jalur menyiku ala jalan kota + sedikit variasi
+  for (let i = 1; i < 9; i++) {
+    const t = i / 9;
     const lat = start.lat + (dest.lat - start.lat) * (t < 0.5 ? t * 0.6 : 0.3 + (t - 0.5) * 1.4);
     const lng = start.lng + (dest.lng - start.lng) * (t < 0.5 ? t * 1.4 : 0.7 + (t - 0.5) * 0.6);
     pts.push({
@@ -88,7 +107,25 @@ export function buildRoute(dest, steps = 9) {
     });
   }
   pts.push({ lat: dest.lat, lng: dest.lng });
-  return pts;
+  return { pts, distance: 1500, duration: 300 };
+}
+
+/* Interpolasi titik untuk pergerakan halus (animasi) */
+export function interpolateRoute(pts, stepsPerSegment = 10) {
+  const smoothPts = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    for (let j = 0; j < stepsPerSegment; j++) {
+      const t = j / stepsPerSegment;
+      smoothPts.push({
+        lat: p1.lat + (p2.lat - p1.lat) * t,
+        lng: p1.lng + (p2.lng - p1.lng) * t
+      });
+    }
+  }
+  smoothPts.push(pts[pts.length - 1]);
+  return smoothPts;
 }
 
 /* Peta ilustrasi fallback (tanpa jaringan) */

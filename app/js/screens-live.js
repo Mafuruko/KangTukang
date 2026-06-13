@@ -12,7 +12,7 @@ import {
 import { findWorker, processPayment, initialEta, workerOffer, negotiatedOffer } from "./sim.js";
 import { getState, updateOrder, setState, adjustBalance, addHistory } from "./store.js";
 import { h, icon, screen, btn, fmtRp, stars, photoAvatar, toast, addTimer } from "./ui.js";
-import { hasLeaflet, makeMap, homeMarker, driverMarker, routeLine, buildRoute, fallbackMapSvg, DEFAULT_CENTER } from "./map.js";
+import { hasLeaflet, makeMap, homeMarker, driverMarker, routeLine, fetchOSRMRoute, interpolateRoute, fallbackMapSvg, DEFAULT_CENTER } from "./map.js";
 
 const go = (hash) => (location.hash = hash);
 
@@ -274,7 +274,7 @@ export function PriceAgreementScreen() {
   });
 }
 
-/* ---------- 13. Tracking (peta sungguhan) ---------- */
+/* ---------- 13. Tracking (peta sungguhan dengan rute OSRM) ---------- */
 export function TrackingScreen() {
   const order = getState().order;
   const w = getWorker(order.workerId);
@@ -282,92 +282,23 @@ export function TrackingScreen() {
   const dest = { lat: loc.lat ?? DEFAULT_CENTER.lat, lng: loc.lng ?? DEFAULT_CENTER.lng };
 
   let eta = initialEta();
-  const etaText = h("span", {}, "Tiba ± " + eta + " mnt");
+  const etaText = h("strong", { class: "dist-val" }, "Menghitung...");
+  const distText = h("span", { class: "dist-val" }, "...");
   const statusRow = h("div", { class: "track-status-row" }, icon("pin"), h("span", {}, w.name.split(" ")[0] + " sedang menuju lokasi Anda"));
 
   const mapWrap = h("div", { class: "map-wrap tall" });
-  const etaPill = h("div", { class: "eta-pill" }, h("span", { class: "dot" }), etaText);
-
-  /* state perjalanan */
-  const route = buildRoute(dest, 9);
-  let seg = 0;
-  let arrived = false;
-
-  let leaf = null; // {map, drv}
-  let svgPin = null;
-
-  if (hasLeaflet()) {
-    const mapEl = h("div", { class: "map-real" });
-    mapWrap.replaceChildren(mapEl, etaPill);
-    const map = makeMap(mapEl, dest, 15, true);
-    homeMarker(map, dest);
-    routeLine(map, route);
-    const drv = driverMarker(map, route[0], w.photo);
-    const b = window.L.latLngBounds(route.map((p) => [p.lat, p.lng]));
-    map.fitBounds(b.pad(0.18));
-    leaf = { map, drv };
-  } else {
-    /* fallback ilustrasi */
-    const path = [
-      { x: 12, y: 86 }, { x: 12, y: 62 }, { x: 34, y: 62 }, { x: 34, y: 36 },
-      { x: 58, y: 36 }, { x: 58, y: 52 }, { x: 78, y: 52 }, { x: 78, y: 40 },
-    ];
-    svgPin = { path, el: h("div", { class: "map-pin worker-pin", style: `left:${path[0].x}%;top:${path[0].y}%` }, icon("wrench")) };
-    mapWrap.replaceChildren(
-      fallbackMapSvg(true),
-      h("div", { class: "map-pin cust-pin", style: "left:78%;top:40%" }, icon("pin")),
-      svgPin.el,
-      etaPill,
-      h("span", { class: "map-tag" }, "Peta")
-    );
-  }
-
-  const totalSegs = leaf ? route.length - 1 : svgPin.path.length - 1;
-
-  function arrive() {
-    if (arrived) return;
-    arrived = true;
-    eta = 0;
-    etaText.textContent = "Mitra tiba 🎉";
-    statusRow.replaceChildren(icon("check"), h("span", {}, w.name.split(" ")[0] + " sudah tiba di lokasi"));
-    if (leaf) leaf.drv.setLatLng([dest.lat, dest.lng]);
-    else {
-      const last = svgPin.path[svgPin.path.length - 1];
-      svgPin.el.style.left = last.x + "%";
-      svgPin.el.style.top = last.y + "%";
-    }
-    bottomEl.replaceChildren(h("div", { class: "arrival-wait" }, h("span", { class: "status-orb" }), h("span", {}, "Tukang memulai pemeriksaan awal")));
-    addTimer(setTimeout(() => {
-      updateOrder({ step: "progress" });
-      go("#/progress");
-    }, 1100));
-  }
-
-  const tick = addTimer(
-    setInterval(() => {
-      seg++;
-      if (seg >= totalSegs) {
-        clearInterval(tick);
-        arrive();
-        return;
-      }
-      if (leaf) {
-        const p = route[seg];
-        leaf.drv.setLatLng([p.lat, p.lng]);
-      } else {
-        const p = svgPin.path[seg];
-        svgPin.el.style.left = p.x + "%";
-        svgPin.el.style.top = p.y + "%";
-      }
-      eta = Math.max(1, Math.round(initialEta() * (1 - seg / totalSegs)));
-      etaText.textContent = "Tiba ± " + eta + " mnt";
-      if (seg === totalSegs - 2) statusRow.replaceChildren(icon("pin"), h("span", {}, w.name.split(" ")[0] + " hampir tiba"));
-    }, 1500)
+  const distancePill = h("div", { class: "distance-pill" }, 
+    h("div", { class: "dist-col" }, h("span", {class: "dist-label"}, "Sisa Jarak"), distText),
+    h("div", { class: "dist-divider" }),
+    h("div", { class: "dist-col" }, h("span", {class: "dist-label"}, "Waktu Tiba"), etaText)
   );
 
+  let leaf = null;
+  let svgPin = null;
+  let arrived = false;
   const bottomEl = h("div", { class: "arrival-wait" }, h("span", { class: "status-orb" }), h("span", {}, "Tukang sedang menuju lokasi"));
-
-  return screen({
+  
+  const screenEl = screen({
     title: "Lacak Tukang",
     content: h(
       "div",
@@ -399,6 +330,106 @@ export function TrackingScreen() {
     ),
     bottom: bottomEl,
   });
+
+  // Fetch real route and start animation
+  fetchOSRMRoute(dest).then(routeData => {
+    const rawRoute = routeData.pts;
+    const totalDist = routeData.distance; // meter
+    const smoothRoute = interpolateRoute(rawRoute, 5);
+    const totalSegs = smoothRoute.length - 1;
+    let seg = 0;
+    
+    function formatDist(m) {
+      if (m >= 1000) return (m / 1000).toFixed(1) + " km";
+      return Math.round(m) + " m";
+    }
+
+    if (hasLeaflet()) {
+      const mapEl = h("div", { class: "map-real" });
+      mapWrap.replaceChildren(mapEl, distancePill);
+      const map = makeMap(mapEl, dest, 15, true);
+      homeMarker(map, dest);
+      const rLine = routeLine(map, rawRoute);
+      const drv = driverMarker(map, smoothRoute[0], w.photo);
+      const b = window.L.latLngBounds(rawRoute.map((p) => [p.lat, p.lng]));
+      map.fitBounds(b.pad(0.18));
+      leaf = { map, drv, rLine };
+    } else {
+      const path = [
+        { x: 12, y: 86 }, { x: 12, y: 62 }, { x: 34, y: 62 }, { x: 34, y: 36 },
+        { x: 58, y: 36 }, { x: 58, y: 52 }, { x: 78, y: 52 }, { x: 78, y: 40 },
+      ];
+      svgPin = { path, el: h("div", { class: "map-pin worker-pin", style: `left:${path[0].x}%;top:${path[0].y}%` }, icon("wrench")) };
+      mapWrap.replaceChildren(
+        fallbackMapSvg(true),
+        h("div", { class: "map-pin cust-pin", style: "left:78%;top:40%" }, icon("pin")),
+        svgPin.el,
+        distancePill,
+        h("span", { class: "map-tag" }, "Peta")
+      );
+    }
+
+    function arrive() {
+      if (arrived) return;
+      arrived = true;
+      etaText.textContent = "Tiba";
+      distText.textContent = "0 m";
+      statusRow.replaceChildren(icon("check"), h("span", {}, w.name.split(" ")[0] + " sudah tiba di lokasi"));
+      
+      if (leaf) {
+        leaf.drv.setLatLng([dest.lat, dest.lng]);
+      } else {
+        const last = svgPin.path[svgPin.path.length - 1];
+        svgPin.el.style.left = last.x + "%";
+        svgPin.el.style.top = last.y + "%";
+      }
+      
+      bottomEl.replaceChildren(h("div", { class: "arrival-wait" }, h("span", { class: "status-orb" }), h("span", {}, "Tukang memulai pemeriksaan awal")));
+      addTimer(setTimeout(() => {
+        updateOrder({ step: "progress" });
+        go("#/progress");
+      }, 1500));
+    }
+
+    const fps = 20; // ms per frame (smooth animation)
+    const tick = addTimer(
+      setInterval(() => {
+        seg++;
+        if (seg >= totalSegs) {
+          clearInterval(tick);
+          arrive();
+          return;
+        }
+        
+        const progress = seg / totalSegs;
+        
+        if (leaf) {
+          const p = smoothRoute[seg];
+          leaf.drv.setLatLng([p.lat, p.lng]);
+          leaf.rLine.setLatLngs(smoothRoute.slice(seg).map(pt => [pt.lat, pt.lng]));
+        } else {
+          // fallback anim
+          const fbSegs = svgPin.path.length - 1;
+          const fbSeg = Math.floor(progress * fbSegs);
+          const p = svgPin.path[Math.min(fbSeg, fbSegs)];
+          svgPin.el.style.left = p.x + "%";
+          svgPin.el.style.top = p.y + "%";
+        }
+        
+        const remainDist = totalDist * (1 - progress);
+        distText.textContent = formatDist(remainDist);
+        
+        eta = Math.max(1, Math.round((routeData.duration / 60) * (1 - progress)));
+        etaText.textContent = eta + " mnt";
+        
+        if (progress > 0.85 && !arrived) {
+          statusRow.replaceChildren(icon("pin"), h("span", {}, w.name.split(" ")[0] + " hampir tiba"));
+        }
+      }, fps)
+    );
+  });
+
+  return screenEl;
 }
 
 /* ---------- 14. Progress pengerjaan ---------- */

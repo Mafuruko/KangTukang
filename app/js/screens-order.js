@@ -703,7 +703,7 @@ export function LocationScreen() {
     listEl.replaceChildren(...rows);
   };
   renderList();
-  renderMap();
+  setTimeout(renderMap, 50);
 
   /* GPS asli (opsional) */
   const gpsBtn = h(
